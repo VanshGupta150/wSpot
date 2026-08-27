@@ -1,0 +1,1 @@
+Construction Phase 1 (popup shell + global hotkey)

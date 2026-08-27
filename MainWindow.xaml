@@ -1,0 +1,31 @@
+<Window x:Class="wSpot.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="wSpot"
+        Height="60" Width="900"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Deactivated="Window_Deactivated"
+        Visibility="Visible"
+        ResizeMode="NoResize">
+
+    <Border CornerRadius="30"
+            Background="#FF252526"
+            BorderBrush="#FF3E3E42"
+            BorderThickness="1">
+        <TextBox x:Name="SearchBox"
+                 Background="Transparent"
+                 Foreground="White"
+                 BorderThickness="0"
+                 FontSize="20"
+                 VerticalContentAlignment="Center"
+                 Padding="16,0,16,0"
+                 CaretBrush="White"
+                 PreviewKeyDown="SearchBox_PreviewKeyDown"
+                 TextChanged="SearchBox_TextChanged"/>
+    </Border>
+</Window>
