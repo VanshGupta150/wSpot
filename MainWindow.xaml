@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="wSpot"
-        Height="60" Width="900"
+        Width="900"
+        SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -13,19 +14,39 @@
         Visibility="Visible"
         ResizeMode="NoResize">
 
+    <Window.InputBindings>
+        <KeyBinding Key="Return" Command="{Binding LaunchCommand}" />
+    </Window.InputBindings>
+
     <Border CornerRadius="30"
             Background="#FF252526"
             BorderBrush="#FF3E3E42"
             BorderThickness="1">
-        <TextBox x:Name="SearchBox"
-                 Background="Transparent"
-                 Foreground="White"
-                 BorderThickness="0"
-                 FontSize="20"
-                 VerticalContentAlignment="Center"
-                 Padding="16,0,16,0"
-                 CaretBrush="White"
-                 PreviewKeyDown="SearchBox_PreviewKeyDown"
-                 TextChanged="SearchBox_TextChanged"/>
+        <StackPanel>
+            <TextBox x:Name="SearchBox"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     Background="Transparent"
+                     Foreground="White"
+                     BorderThickness="0"
+                     FontSize="20"
+                     Height="60"
+                     VerticalContentAlignment="Center"
+                     Padding="16,0,16,0"
+                     CaretBrush="White"
+                     PreviewKeyDown="SearchBox_PreviewKeyDown"/>
+
+            <ListBox ItemsSource="{Binding Results}"
+                     SelectedItem="{Binding SelectedResult}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Foreground="White"
+                     MaxHeight="300">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}" Padding="16,8" FontSize="15"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
     </Border>
 </Window>
