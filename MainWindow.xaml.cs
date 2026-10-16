@@ -44,8 +44,12 @@ namespace wSpot
             {
                 MessageBox.Show(
                     "Could not register the global hotkey (Ctrl+Space).\n" +
-                    "Another app may already be using it.",
-                    "wSpot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Another application is already using it.\n\n" +
+                    "wSpot cannot run without a hotkey and will now exit.",
+                    "wSpot", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                Application.Current.Shutdown();
+                return;
             }
 
             HideWindow();
