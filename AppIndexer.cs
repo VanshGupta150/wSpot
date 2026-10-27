@@ -5,11 +5,6 @@ using wSpot.Models;
 
 namespace wSpot.Services
 {
-    /// <summary>
-    /// Scans the two Start Menu locations Windows uses — the all-users
-    /// folder and the current user's own folder — for .lnk shortcuts,
-    /// and resolves each one via ShortcutResolver.
-    /// </summary>
     public static class AppIndexer
     {
         public static List<AppEntry> ScanInstalledApps()

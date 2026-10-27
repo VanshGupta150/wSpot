@@ -4,17 +4,6 @@ using System.Text;
 
 namespace wSpot.Services
 {
-    /// <summary>
-    /// Resolves a .lnk shortcut into its real target path and arguments,
-    /// using the same IShellLink COM interface Windows Explorer itself
-    /// uses to read shortcuts. This is what correctly handles shortcuts
-    /// with arguments, which naive binary .lnk parsing tends to get wrong.
-    ///
-    /// This is genuinely dense, unusual-looking code — COM interop rarely
-    /// comes up outside exactly this kind of task. You don't need to
-    /// memorize the interface definitions below, just what Resolve() does:
-    /// hand it a .lnk path, get back the real target path and arguments.
-    /// </summary>
     public static class ShortcutResolver
     {
         [ComImport]
