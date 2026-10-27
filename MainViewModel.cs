@@ -11,9 +11,6 @@ namespace wSpot.ViewModels
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        // Kept for Week 9 (frecency) — that phase will need to write usage
-        // stats back to the database on each launch. Not read anywhere else
-        // in this file yet.
         private readonly AppDatabase _database;
 
         private readonly List<AppEntry> _allApps;
