@@ -1,29 +1,7 @@
 namespace wSpot.Services
 {
-    /// <summary>
-    /// Scores how well a typed query matches a target string, using
-    /// subsequence matching (query characters must appear in the target,
-    /// in order, but not necessarily consecutively) plus bonuses for:
-    ///   - matching at the start of a word (e.g. the "V" in "Visual")
-    ///   - runs of consecutive matched characters
-    ///   - matching the exact letter case typed
-    /// and a small penalty for longer targets, so a tighter, shorter match
-    /// outranks a looser one buried in a longer name.
-    ///
-    /// This greedily takes the FIRST available match for each query
-    /// character rather than searching for the best possible alignment —
-    /// a known, intentional simplification. A fully optimal matcher would
-    /// need dynamic programming to compare every possible alignment, which
-    /// is real added complexity for a gain that's rarely noticeable in
-    /// practice at this project's scale (dozens to a few hundred apps).
-    /// </summary>
     public static class FuzzyMatcher
     {
-        /// <summary>
-        /// Returns a score if every character in <paramref name="query"/>
-        /// appears in <paramref name="target"/> in order, or null if it
-        /// doesn't match at all. Higher scores are better matches.
-        /// </summary>
         public static int? Score(string query, string target)
         {
             if (string.IsNullOrEmpty(query)) return 0;
