@@ -5,15 +5,6 @@ using wSpot.Models;
 
 namespace wSpot.Services
 {
-    /// <summary>
-    /// The local, persistent cache described in the blueprint: instead of
-    /// re-scanning and re-parsing every shortcut on every launch, we scan
-    /// once and store the results here.
-    ///
-    /// As of Phase 3, search no longer happens here — fuzzy matching can't
-    /// be expressed as a SQL query, so GetAllApps() loads everything once
-    /// and MainViewModel scores it in memory with FuzzyMatcher instead.
-    /// </summary>
     public class AppDatabase
     {
         private readonly string _connectionString;
