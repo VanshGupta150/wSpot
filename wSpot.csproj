@@ -14,4 +14,10 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.13" />
   </ItemGroup>
 
+  <!-- Optional: if you put es.exe next to this .csproj file, it is copied beside
+       wSpot.exe on every build. If the file isn't there, this line does nothing. -->
+  <ItemGroup>
+    <None Update="es.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

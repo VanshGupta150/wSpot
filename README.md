@@ -1,92 +1,160 @@
-# wSpot —
-**Phase 1 (Week 4-5: Popup Shell + Global Hotkey)**
-**Phase 2 (Week 6-7: App Indexing + Basic Search)**
-**Phase 3 (Week 8-9: Custom Fuzzy Matching)**
+# wSpot — Phase 4 (Construction Week 8: File Search)
 
----
+Builds on Phase 3. Until now wSpot only found installed apps. This phase adds
+**file search** and merges files and apps into one ranked list. If Everything
+isn't installed, it falls back to scanning a few folders, so wSpot still works
+on any Windows PC (for example, the laptop you demo on).
 
-## Phase 1 — Popup Shell + Global Hotkey
+> **Status, please read.** This phase was written in an environment with no .NET
+> SDK, so it has **not been compiled or run**. It was checked for syntax errors and
+> for mismatches between files (every XAML handler and binding has a matching C#
+> member, every cross-file call resolves). Build it in Visual Studio
+> (Build → Rebuild Solution). If the Error List shows anything, send it back and
+> it gets fixed.
 
-A bare-minimum WPF window that appears and disappears on a global
-keyboard shortcut. No search, no results — just the shell that
-everything else will be built inside.
+## What you'll see
 
-### What Phase 1 introduced
-- `App.xaml` / `App.xaml.cs` — WPF application entry point.
-- `MainWindow.xaml` / `MainWindow.xaml.cs` — single search box,
-  global hotkey registration (`RegisterHotKey` via P/Invoke),
-  show/hide on `Win + Space`.
+- Type `report` and apps and files appear in one list. Each row has the name, a
+  grey second line (the folder for a file, "Application" for an app) and a small
+  **App** / **File** badge on the right.
+- With Everything running, files come from every drive in a few milliseconds.
+  Without it, a grey note under the list says what is being searched instead.
+- Enter or a click opens the item and the window hides immediately. If a file was
+  moved or deleted meanwhile, the note under the list says so instead of crashing.
+- Hover a row to see the full path.
 
----
+## How a search works now
 
-## Phase 2 — App Indexing + Basic Search
+1. **Every keystroke** cancels whatever file search was still running.
+2. **Instantly:** apps are scored with `FuzzyMatcher` (plus a +10 bonus so an app
+   beats an equally good file), together with any files from the previous search
+   that still match. The list updates at once.
+3. **After a 120 ms typing pause** (and at least 2 characters), `FileSearchService`
+   asks Everything for up to 100 candidate files whose *name contains every typed
+   word*, newest first, with noisy folders excluded.
+4. Candidates are re-scored with `FuzzyMatcher`, merged with the apps, and the top
+   15 are shown. If you had moved the highlight with Up/Down, it stays on your row
+   when late results arrive instead of jumping back to the top.
+5. If Everything isn't usable, `FolderScanFileSearcher` answers instead, from
+   Desktop, Documents and Downloads, and the note appears.
 
-Builds on Phase 1. Adds a full app-indexing and search pipeline using
-SQLite. Typing in the search box now returns real installed apps via
-a `LIKE`-based substring query.
+## Set up Everything (optional, recommended)
 
-### What's new since Phase 1
-- `Models/AppEntry.cs` — plain data class for one indexed app.
-- `Services/ShortcutResolver.cs` — resolves `.lnk` files via the
-  `IShellLink` COM interface (handles shortcuts with arguments properly,
-  unlike naive binary parsing).
-- `Services/AppIndexer.cs` — scans the Start Menu folders (both the
-  all-users and current-user locations) recursively for `.lnk` files.
-- `Services/AppDatabase.cs` — SQLite wrapper (`Microsoft.Data.Sqlite`):
-  creates the `apps` table, replaces its contents on each scan, and
-  runs substring search queries against it.
-- `Services/ProcessLauncher.cs` — thin wrapper around `Process.Start`.
-- `Helpers/RelayCommand.cs` — minimal `ICommand` implementation, the
-  standard MVVM building block (WPF doesn't ship one).
-- `ViewModels/MainViewModel.cs` — first real ViewModel: exposes
-  `SearchText`, `Results` (`ObservableCollection<AppEntry>`),
-  `SelectedResult`, and `LaunchCommand`.
-- `MainWindow.xaml` / `.xaml.cs` — updated to bind to the ViewModel
-  instead of handling search in code-behind. A `ListBox` now shows
-  results underneath the search box.
+1. **Install Everything** from voidtools.com (or `winget install voidtools.Everything`)
+   and keep it running (it sits in the tray).
+2. **Get es.exe**, voidtools' command-line tool: the "ES" download on voidtools.com
+   (a zip containing es.exe), or `winget install --id voidtools.Everything.Cli`.
+3. **Let wSpot find es.exe**, any one of these is enough:
+   - next to `wSpot.exe` (for F5 runs: `bin\Debug\net8.0-windows\`)
+   - next to `wSpot.csproj`, where the project file copies it on every build
+   - in a folder on your PATH (winget does this). Restart Visual Studio afterwards so
+     it picks up the new PATH.
+4. **Check it works.** In Command Prompt run `es -n 5 .docx` (or give the full path to
+   es.exe). You should get five file paths. "Everything IPC window not found" means
+   Everything isn't running.
 
----
+Use the stable Everything 1.4.x. The 1.5 alpha uses a separate instance name that
+es.exe doesn't connect to by default.
 
-## Phase 3 — Custom Fuzzy Matching
+## What the note under the list means
 
-Builds on Phase 2. Replaces the `LIKE`-based substring search with a
-custom fuzzy-matching scorer. Apps are now loaded into memory once
-instead of being re-queried from SQLite on every keystroke.
+| Note | Meaning |
+|---|---|
+| *(no note)* | Everything answered |
+| `es.exe not found — searching Desktop, Documents, Downloads only` | step 2 or 3 above isn't done |
+| `Everything isn't running — searching … only` | es.exe is found, but the Everything app isn't running |
+| `es.exe failed (…) — searching … only` | usually an es.exe older than 1.1.0.x (it doesn't know `-export-txt`); update it |
+| `es.exe timed out — searching … only` | Everything took over 3 seconds; it is retried after 5 seconds |
 
-### What's new since Phase 2
-- `Services/FuzzyMatcher.cs` — the scorer: subsequence matching (query
-  characters must appear in order, not necessarily consecutively) plus
-  bonuses for word-start matches, consecutive-character runs, and exact
-  case matches, with a small penalty for longer targets.
-- `Services/AppDatabase.cs` — `Search(query)` is gone; `GetAllApps()`
-  replaces it, returning everything unfiltered.
-- `ViewModels/MainViewModel.cs` — loads `_allApps` once in the
-  constructor. `RunSearch()` now scores every app in memory with
-  `FuzzyMatcher.Score()` and sorts by score instead of hitting the
-  database per keystroke.
+## Files in this phase
 
-### What this does differently from Phase 2
-- Typing `vsc` now finds "Visual Studio Code" even though those letters
-  aren't consecutive — Phase 2's substring match required typing a
-  literal chunk of the real name.
-- Results are ranked by match quality, not alphabetically within a
-  `LIKE` filter.
+**New**
 
-### Known simplifications (intentional, flagged for later)
-- **Greedy matching, not globally optimal.** The scorer takes the first
-  available match for each query character rather than searching every
-  possible alignment. A fully optimal version needs dynamic programming —
-  deliberate scope decision, not an oversight.
-- **No typo tolerance yet** (Levenshtein distance) — flagged as
-  optional/if-time-allows in the blueprint, not core to this phase.
-- **`_database` field in `MainViewModel` is currently unused** after the
-  constructor — kept deliberately for Week 9, which will write usage
-  stats on each launch.
+| File | What it does |
+|---|---|
+| `Services/EverythingClient.cs` | Runs es.exe, reads the results, maps exit code 8 to "Everything isn't running" |
+| `Services/FolderScanFileSearcher.cs` | The fallback: background scan of a few folders, kept in memory, rescanned at most once a minute |
+| `Services/FileSearchService.cs` | The one door the app uses: tries Everything, else the fallback; remembers a failure for 5 s |
+| `Services/FileResultFilter.cs` | Noise list: Windows, Program Files, AppData, node_modules, .git, bin\Debug... |
 
----
+**Changed**
 
-## Next step (Construction Week 10)
-Integrate Everything's CLI for file search, merging its results into
-the same scored-and-ranked list `FuzzyMatcher` already produces for
-apps — tag each result with its type (app vs. file) so the UI can show
-different icons once the polish pass adds them.
+| File | Change |
+|---|---|
+| `Models/AppEntry.cs` | Added `Kind` (App or File), `Subtitle` and `KindLabel`. The class keeps its name so earlier phases still merge |
+| `Services/ProcessLauncher.cs` | `Launch` became `TryLaunch(entry, out error)`, which never throws |
+| `ViewModels/MainViewModel.cs` | Debounced, cancellable file search merged with app results; `StatusMessage`; `MoveSelection` moved here from the window |
+| `MainWindow.xaml` | Two-line rows with a badge, a dark selection highlight, and the footer note |
+| `MainWindow.xaml.cs` | Up/Down call `_viewModel.MoveSelection`; the window hides when something launched |
+| `wSpot.csproj` | Optional line that copies `es.exe` to the output folder if you drop it next to the project |
+
+**Unchanged from Phase 3:** `App.xaml`, `App.xaml.cs`, `Helpers/RelayCommand.cs`,
+`Services/AppDatabase.cs`, `Services/AppIndexer.cs`, `Services/ShortcutResolver.cs`,
+`Services/FuzzyMatcher.cs`.
+
+## Merging this into your existing project
+
+1. Close Visual Studio.
+2. Open your project folder (the one that contains `wSpot.csproj`) and copy everything
+   from this folder over it, keeping the subfolders (`Models`, `Services`,
+   `ViewModels`, `Helpers`). Say yes to "replace". Do **not** touch `bin`, `obj`,
+   `.vs` or `.git`.
+3. Reopen the solution. You don't need "Add Existing Item": a project like this picks up
+   new `.cs` files in its folder automatically.
+4. Build → Rebuild Solution, then press F5.
+
+Coming from Phase 2? Same steps. This folder already contains Phase 3's changes
+(`FuzzyMatcher.cs` is new since Phase 2, and `AppDatabase.cs` lost `Search()` in favour
+of `GetAllApps()`), so copying everything brings you fully up to date.
+
+Make sure `wSpot.csproj` still has the `Microsoft.Data.Sqlite` package reference. The one
+in this folder does.
+
+## Quick test checklist
+
+1. Ctrl+Space, type `calc`. Calculator comes first, with an **App** badge.
+2. Type part of a document name you know (say `resume`). File rows appear with a folder path.
+3. Up/Down moves the highlight, Enter opens the file in its normal program, and the window hides.
+4. Click a row. It opens too.
+5. Type `xyzzy123`. Nothing found, no crash.
+6. Quit Everything from the tray, then search a file in Documents. It is still found, and
+   the note appears.
+7. Find a file, delete it (leave wSpot open), press Enter. The note says it no longer exists.
+8. Type an app name that is also a file name. The app is above the file.
+9. Mash keys quickly. No flicker or crash, and the list settles on what you typed last.
+
+## Design decisions worth writing in the report
+
+- **Everything only produces candidates.** Matching, ranking, merging with apps, debouncing,
+  cancellation and the fallback are our own code, so the project doesn't depend on someone
+  else's engine for its core logic (the course's "engine availability" criterion).
+- **Substring first, fuzzy second.** Everything finds files whose name contains all typed
+  words, which keeps the candidate list precise. `FuzzyMatcher` then re-orders them.
+- **Debounce plus cancellation.** Without them, a slow search for "rep" can finish after the
+  search for "report" and overwrite it with stale results.
+- **Results go through a UTF-8 temp file, not console output.** Console output uses the
+  console's code page and turns non-English file names into "?".
+- **A stable highlight.** Late results never pull the highlight away from a row you chose.
+- **A graceful fallback.** No Everything means a smaller scope, not a broken feature, and
+  the app says so.
+
+## Known limits (intentional, flagged for later)
+
+- Everything matches words, not abbreviations: typing `qrpt` won't find
+  "Quarterly Report" (apps still support abbreviations). A wildcard query such as
+  `*q*r*p*t*` could add this later.
+- Files only, not folders.
+- The fallback covers 3 folders, at most 100,000 files, 8 levels deep.
+- No icons yet (Week 10).
+- The class is still called `AppEntry` even though it now holds files too.
+- The noise lists are fixed in code. Making them configurable is a Week 10 candidate.
+- No automated tests yet. `EverythingClient.BuildTerms`, `EverythingClient.ParsePaths`
+  and `FileResultFilter.IsNoise` are static and easy to unit-test for the CI setup.
+- There is no `.gitignore` in this folder. If you use Git, let Visual Studio add its
+  standard one (it ignores `bin/`, `obj/`, `.vs/`).
+
+## Next step (Construction Week 9)
+
+Frecency: a `usage_stats` table in SQLite (kind, path, launch count, last launched),
+written from `MainViewModel.LaunchSelected`, with a decaying score added to the ranking
+so things you open often rise to the top. Files and apps both use the same table.
