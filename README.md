@@ -1,160 +1,189 @@
-# wSpot — Phase 4 (Construction Week 8: File Search)
+# wSpot — Phases 5 and 6 (Construction Weeks 9 and 10)
 
-Builds on Phase 3. Until now wSpot only found installed apps. This phase adds
-**file search** and merges files and apps into one ranked list. If Everything
-isn't installed, it falls back to scanning a few folders, so wSpot still works
-on any Windows PC (for example, the laptop you demo on).
+**Phase 5: frecency.** wSpot learns what you open and puts it first.
+**Phase 6: utility and polish.** A calculator, system commands, a web-search fallback, real
+icons, highlighted matches, "show in folder", and a latency log for your evaluation.
 
-> **Status, please read.** This phase was written in an environment with no .NET
-> SDK, so it has **not been compiled or run**. It was checked for syntax errors and
-> for mismatches between files (every XAML handler and binding has a matching C#
-> member, every cross-file call resolves). Build it in Visual Studio
-> (Build → Rebuild Solution). If the Error List shows anything, send it back and
-> it gets fixed.
+---
+
+## How the list is ordered now
+
+Every row gets a score. The list is sorted by it, best first.
+
+```
+score = how well the letters match (FuzzyMatcher)
+      + 2..10 scaled bonus if it's an app or command
+      + 0..45 frecency boost: how much you use it   <- Phase 5
+      - depth penalty (shallow paths outrank deeply nested ones)
+```
+
+Two rows sit outside the scoring: a valid **calculation** is always first, and the
+**"Search the web" row** is always last. Up to 15 scored rows are shown between them.
+
+---
+
+# Phase 5 — Frecency (Week 9)
 
 ## What you'll see
 
-- Type `report` and apps and files appear in one list. Each row has the name, a
-  grey second line (the folder for a file, "Application" for an app) and a small
-  **App** / **File** badge on the right.
-- With Everything running, files come from every drive in a few milliseconds.
-  Without it, a grey note under the list says what is being searched instead.
-- Enter or a click opens the item and the window hides immediately. If a file was
-  moved or deleted meanwhile, the note under the list says so instead of crashing.
-- Hover a row to see the full path.
+- Open Notepad a few times through wSpot. Type `n` and Notepad is now at the top,
+  even if another app matches `n` slightly better.
+- Press **Ctrl+Space** with the box empty. A **Frequently used** list shows up to five
+  things you open most. Nothing is highlighted yet, so a stray Enter launches nothing;
+  press Down to pick one, then Enter.
+- It survives restarts, and it covers apps, files, folders and commands.
+- The command **Clear wSpot history** (type `clear`, Enter, then Enter again to confirm)
+  makes wSpot forget everything.
 
-## How a search works now
+## How it works
 
-1. **Every keystroke** cancels whatever file search was still running.
-2. **Instantly:** apps are scored with `FuzzyMatcher` (plus a +10 bonus so an app
-   beats an equally good file), together with any files from the previous search
-   that still match. The list updates at once.
-3. **After a 120 ms typing pause** (and at least 2 characters), `FileSearchService`
-   asks Everything for up to 100 candidate files whose *name contains every typed
-   word*, newest first, with noisy folders excluded.
-4. Candidates are re-scored with `FuzzyMatcher`, merged with the apps, and the top
-   15 are shown. If you had moved the highlight with Up/Down, it stays on your row
-   when late results arrive instead of jumping back to the top.
-5. If Everything isn't usable, `FolderScanFileSearcher` answers instead, from
-   Desktop, Documents and Downloads, and the note appears.
+"Frecency" means frequency and recency in one number.
 
-## Set up Everything (optional, recommended)
+- Every item has a **score**. Launching it adds **1**.
+- The score **halves every 14 days** (`HalfLifeDays` in `FrecencyScorer.cs`).
+- So something opened five times today beats something opened five times last month, and
+  something opened daily beats something opened once.
 
-1. **Install Everything** from voidtools.com (or `winget install voidtools.Everything`)
-   and keep it running (it sits in the tray).
-2. **Get es.exe**, voidtools' command-line tool: the "ES" download on voidtools.com
-   (a zip containing es.exe), or `winget install --id voidtools.Everything.Cli`.
-3. **Let wSpot find es.exe**, any one of these is enough:
-   - next to `wSpot.exe` (for F5 runs: `bin\Debug\net8.0-windows\`)
-   - next to `wSpot.csproj`, where the project file copies it on every build
-   - in a folder on your PATH (winget does this). Restart Visual Studio afterwards so
-     it picks up the new PATH.
-4. **Check it works.** In Command Prompt run `es -n 5 .docx` (or give the full path to
-   es.exe). You should get five file paths. "Everything IPC window not found" means
-   Everything isn't running.
+Only two numbers are stored per item: the score and the moment it was last updated. That is
+enough because the decay is exponential: decaying "from then until now" in one step gives the
+same answer as decaying a bit every day. No launch history needs to be kept, which makes the
+storage cost per item constant.
 
-Use the stable Everything 1.4.x. The 1.5 alpha uses a separate instance name that
-es.exe doesn't connect to by default.
+The score becomes a ranking boost with a logarithm, capped at 45:
 
-## What the note under the list means
+```
+boost = min(45, round(12 * ln(1 + score)))
+```
 
-| Note | Meaning |
-|---|---|
-| *(no note)* | Everything answered |
-| `es.exe not found — searching Desktop, Documents, Downloads only` | step 2 or 3 above isn't done |
-| `Everything isn't running — searching … only` | es.exe is found, but the Everything app isn't running |
-| `es.exe failed (…) — searching … only` | usually an es.exe older than 1.1.0.x (it doesn't know `-export-txt`); update it |
-| `es.exe timed out — searching … only` | Everything took over 3 seconds; it is retried after 5 seconds |
+| What you did | Score | Boost |
+|---|---|---|
+| launched once | 1 | +8 |
+| launched 3 times today | 3 | +17 |
+| launched 10 times recently | 10 | +29 |
+| launched once a day for a week | 6.1 | +23 |
+| launched once a day for a month | 16 | +34 |
+| launched once a day, forever | 20.7 | +37 |
+| 3 launches, then nothing for 14 / 28 / 56 days | 1.5 / 0.75 / 0.19 | +11 / +7 / +2 |
 
-## Files in this phase
+All of these numbers (`HalfLifeDays`, `BoostScale`, `MaxBoost`, `MinSuggestionScore`) sit at the
+top of `FrecencyScorer.cs`, so you can experiment for the report.
 
-**New**
+## Where it's stored
 
-| File | What it does |
-|---|---|
-| `Services/EverythingClient.cs` | Runs es.exe, reads the results, maps exit code 8 to "Everything isn't running" |
-| `Services/FolderScanFileSearcher.cs` | The fallback: background scan of a few folders, kept in memory, rescanned at most once a minute |
-| `Services/FileSearchService.cs` | The one door the app uses: tries Everything, else the fallback; remembers a failure for 5 s |
-| `Services/FileResultFilter.cs` | Noise list: Windows, Program Files, AppData, node_modules, .git, bin\Debug... |
+A SQLite table in `%LocalAppData%\wSpot\wspot.db`, called `usage_stats`:
 
-**Changed**
+```sql
+CREATE TABLE usage_stats (
+    usage_key          TEXT PRIMARY KEY,  -- "kind|target|name", lower-cased
+    kind               INTEGER NOT NULL,  -- 0=App, 1=File, 2=Folder, 3=Command...
+    name               TEXT NOT NULL,
+    target_path        TEXT NOT NULL,
+    launch_count       INTEGER NOT NULL,  -- lifetime total, never decays
+    score              REAL NOT NULL,     -- decayed launch counter
+    score_updated_utc  TEXT NOT NULL,     -- when score was last recomputed
+    last_launched_utc  TEXT NOT NULL
+);
+```
 
-| File | Change |
-|---|---|
-| `Models/AppEntry.cs` | Added `Kind` (App or File), `Subtitle` and `KindLabel`. The class keeps its name so earlier phases still merge |
-| `Services/ProcessLauncher.cs` | `Launch` became `TryLaunch(entry, out error)`, which never throws |
-| `ViewModels/MainViewModel.cs` | Debounced, cancellable file search merged with app results; `StatusMessage`; `MoveSelection` moved here from the window |
-| `MainWindow.xaml` | Two-line rows with a badge, a dark selection highlight, and the footer note |
-| `MainWindow.xaml.cs` | Up/Down call `_viewModel.MoveSelection`; the window hides when something launched |
-| `wSpot.csproj` | Optional line that copies `es.exe` to the output folder if you drop it next to the project |
+Rows older than 180 days with no launch are deleted at startup so the file stays small.
 
-**Unchanged from Phase 3:** `App.xaml`, `App.xaml.cs`, `Helpers/RelayCommand.cs`,
-`Services/AppDatabase.cs`, `Services/AppIndexer.cs`, `Services/ShortcutResolver.cs`,
-`Services/FuzzyMatcher.cs`.
+---
 
-## Merging this into your existing project
+# Phase 6 — Utility and Polish (Week 10)
 
-1. Close Visual Studio.
-2. Open your project folder (the one that contains `wSpot.csproj`) and copy everything
-   from this folder over it, keeping the subfolders (`Models`, `Services`,
-   `ViewModels`, `Helpers`). Say yes to "replace". Do **not** touch `bin`, `obj`,
-   `.vs` or `.git`.
-3. Reopen the solution. You don't need "Add Existing Item": a project like this picks up
-   new `.cs` files in its folder automatically.
-4. Build → Rebuild Solution, then press F5.
+## 1. Calculator
 
-Coming from Phase 2? Same steps. This folder already contains Phase 3's changes
-(`FuzzyMatcher.cs` is new since Phase 2, and `AppDatabase.cs` lost `Search()` in favour
-of `GetAllApps()`), so copying everything brings you fully up to date.
+Type any maths and the top row shows the answer:
 
-Make sure `wSpot.csproj` still has the `Microsoft.Data.Sqlite` package reference. The one
-in this folder does.
+- `2+3*4` -> `14`
+- `(10 - 2) * 5` -> `40`
+- `2^10` or `2**10` -> `1024`
+- `sqrt(144) + 5` -> `17`
+- `15% of 80` -> type `80 * 0.15` -> `12`
+- `sin(pi/2)` -> `1`
 
-## Quick test checklist
+Press **Enter** to copy the answer to the clipboard (the window closes, paste it wherever you
+wanted it).
 
-1. Ctrl+Space, type `calc`. Calculator comes first, with an **App** badge.
-2. Type part of a document name you know (say `resume`). File rows appear with a folder path.
-3. Up/Down moves the highlight, Enter opens the file in its normal program, and the window hides.
-4. Click a row. It opens too.
-5. Type `xyzzy123`. Nothing found, no crash.
-6. Quit Everything from the tray, then search a file in Documents. It is still found, and
-   the note appears.
-7. Find a file, delete it (leave wSpot open), press Enter. The note says it no longer exists.
-8. Type an app name that is also a file name. The app is above the file.
-9. Mash keys quickly. No flicker or crash, and the list settles on what you typed last.
+It uses a small recursive-descent parser (`ExpressionEvaluator.cs`) that only accepts
+numbers, arithmetic and safe functions (`sqrt`, `cbrt`, `abs`, `sin`, `cos`, `tan`, `asin`,
+`acos`, `atan`, `ln`, `log`, `log2`, `exp`, `floor`, `ceil`, `round`, `pow`, `min`, `max`) and
+constants (`pi`, `e`, `tau`). Division by zero, `sqrt(-1)` and overflows fail silently, so
+invalid maths never turns into a calculator row.
 
-## Design decisions worth writing in the report
+Plain numbers like `42` or words like `vs2022` never trigger the calculator: it requires at
+least one operator or function call.
 
-- **Everything only produces candidates.** Matching, ranking, merging with apps, debouncing,
-  cancellation and the fallback are our own code, so the project doesn't depend on someone
-  else's engine for its core logic (the course's "engine availability" criterion).
-- **Substring first, fuzzy second.** Everything finds files whose name contains all typed
-  words, which keeps the candidate list precise. `FuzzyMatcher` then re-orders them.
-- **Debounce plus cancellation.** Without them, a slow search for "rep" can finish after the
-  search for "report" and overwrite it with stale results.
-- **Results go through a UTF-8 temp file, not console output.** Console output uses the
-  console's code page and turns non-English file names into "?".
-- **A stable highlight.** Late results never pull the highlight away from a row you chose.
-- **A graceful fallback.** No Everything means a smaller scope, not a broken feature, and
-  the app says so.
+## 2. Quick system commands
 
-## Known limits (intentional, flagged for later)
+Type:
 
-- Everything matches words, not abbreviations: typing `qrpt` won't find
-  "Quarterly Report" (apps still support abbreviations). A wildcard query such as
-  `*q*r*p*t*` could add this later.
-- Files only, not folders.
-- The fallback covers 3 folders, at most 100,000 files, 8 levels deep.
-- No icons yet (Week 10).
-- The class is still called `AppEntry` even though it now holds files too.
-- The noise lists are fixed in code. Making them configurable is a Week 10 candidate.
-- No automated tests yet. `EverythingClient.BuildTerms`, `EverythingClient.ParsePaths`
-  and `FileResultFilter.IsNoise` are static and easy to unit-test for the CI setup.
-- There is no `.gitignore` in this folder. If you use Git, let Visual Studio add its
-  standard one (it ignores `bin/`, `obj/`, `.vs/`).
+- **Lock** -> locks the PC (`rundll32 user32.dll,LockWorkStation`).
+- **Sleep** -> puts the PC to sleep via the Windows power API (`SetSuspendState`).
+- **Restart**, **Shut down**, **Sign out** -> asks for a second Enter to confirm:
+  press Enter once, the footer says `Press Enter again to confirm: Restart`, press Enter within
+  5 seconds and the command runs. Any other key cancels.
+- **Task Manager**, **Device Manager**, **Services**, **Control Panel**, **Settings**,
+  **Windows Update** -> opens the corresponding Windows management tool.
+- **File Explorer**, **Downloads**, **Recycle Bin** -> opens those locations.
+- **Snipping Tool** -> triggers the Windows screen snip overlay.
 
-## Next step (Construction Week 9)
+Keywords work: `reboot` finds Restart, `processes` finds Task Manager, `trash` finds Recycle Bin.
 
-Frecency: a `usage_stats` table in SQLite (kind, path, launch count, last launched),
-written from `MainViewModel.LaunchSelected`, with a decaying score added to the ranking
-so things you open often rise to the top. Files and apps both use the same table.
+## 3. Web-search fallback
+
+The last row is always **Search the web for "..."**. Press Enter to open the query in your
+default browser. When nothing on your PC matches, this is the only row, so typing a question
+and pressing Enter is seamless.
+
+## 4. Real Windows icons
+
+Each row loads the icon Windows Explorer shows for that item (`IconProvider.cs`):
+
+- `.exe`, `.lnk` and `.ico` files read their own individual icon.
+- Every other file type (`.pdf`, `.docx`, `.png`...) shares one icon per extension, cached
+  in memory.
+- Folders show the standard Windows folder icon.
+- Built-in commands show a symbol from the Segoe MDL2 Assets font that ships with Windows.
+- Icons load in the background, so the list appears immediately and icons fill in a fraction of
+  a second later.
+
+## 5. Match highlighting
+
+The letters that matched what you typed are drawn in **bold** and in an accent colour, using
+the `HighlightText` attached property (`HighlightText.cs`). Neighbouring letters are grouped
+into one `Run` so long names render smoothly.
+
+## 6. Show in folder
+
+Press **Ctrl+Enter** on any file, folder or app to open Explorer with that item selected.
+
+## 7. Latency evaluation log
+
+Every search you settle on appends a row to:
+
+```
+%LocalAppData%\wSpot\search-log.csv
+```
+
+Format:
+
+```csv
+timestamp_utc,query_len,apps_ms,files_ms,engine,results
+2026-11-19T10:45:01.1234567Z,3,1.42,12.80,Everything,15
+```
+
+- `apps_ms`: milliseconds from keystroke until apps and commands were ready.
+- `files_ms`: milliseconds from keystroke until files were merged in.
+- `engine`: `Everything`, `FolderScan` or `none` (for 1-letter searches).
+- `results`: how many rows were shown.
+
+To compute **p50 and p95 latency** for your report, run this PowerShell snippet:
+
+```powershell
+$log = Import-Csv "$env:LOCALAPPDATA\wSpot\search-log.csv"
+$appTimes = $log | ForEach-Object { [double]$_.apps_ms } | Sort-Object
+$p50 = $appTimes[[math]::Floor($appTimes.Count * 0.50)]
+$p95 = $appTimes[[math]::Floor($appTimes.Count * 0.95)]
+Write-Host "Apps latency: p50 = $p50 ms, p95 = $p95 ms (sample size: $($appTimes.Count))"
+```
