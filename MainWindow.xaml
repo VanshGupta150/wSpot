@@ -18,6 +18,37 @@
         <KeyBinding Key="Return" Command="{Binding LaunchCommand}" />
     </Window.InputBindings>
 
+    <Window.Resources>
+        <!-- One row of the results list: white text, a rounded highlight on hover
+             and on the selected row, and content stretched to the full row width
+             so the App/File badge can sit on the right-hand edge. -->
+        <Style x:Key="ResultRowStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="RowBorder"
+                                Margin="6,1"
+                                CornerRadius="6"
+                                Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#FF2D2D30" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#FF094771" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Border CornerRadius="30"
             Background="#FF252526"
             BorderBrush="#FF3E3E42"
@@ -33,25 +64,69 @@
                      VerticalContentAlignment="Center"
                      Padding="16,0,16,0"
                      CaretBrush="White"
-                     PreviewKeyDown="SearchBox_PreviewKeyDown"/>
+                     PreviewKeyDown="SearchBox_PreviewKeyDown" />
 
             <ListBox x:Name="ResultsListBox"
                      ItemsSource="{Binding Results}"
                      SelectedItem="{Binding SelectedResult}"
+                     ItemContainerStyle="{StaticResource ResultRowStyle}"
                      PreviewMouseLeftButtonDown="ResultsListBox_PreviewMouseLeftButtonDown"
+                     SelectionChanged="ResultsListBox_SelectionChanged"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      Background="Transparent"
                      BorderThickness="0"
                      Foreground="White"
-                     MaxHeight="300">
+                     MaxHeight="420">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding Name}"
-                                   Background="Transparent"
-                                   Padding="16,8"
-                                   FontSize="15"/>
+                        <Grid Margin="10,6" ToolTip="{Binding TargetPath}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="15"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Subtitle}"
+                                           FontSize="11"
+                                           Foreground="#FF9D9D9D"
+                                           Margin="0,2,0,0"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1"
+                                    Margin="12,0,0,0"
+                                    Padding="6,1"
+                                    CornerRadius="4"
+                                    Background="#FF3A3A3F"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding KindLabel}"
+                                           FontSize="10"
+                                           Foreground="#FFB4B4B4" />
+                            </Border>
+                        </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+
+            <!-- Footer note: hidden while StatusMessage is empty. -->
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="#FF9D9D9D"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       Padding="16,4,16,8">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </StackPanel>
     </Border>
 </Window>

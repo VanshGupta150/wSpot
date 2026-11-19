@@ -34,6 +34,7 @@ namespace wSpot
             database.ReplaceAllApps(AppIndexer.ScanInstalledApps());
 
             _viewModel = new MainViewModel(database);
+            _viewModel.CloseRequested += HideWindow; // hide as soon as something launched
             DataContext = _viewModel;
 
             Loaded += MainWindow_Loaded;
@@ -49,11 +50,10 @@ namespace wSpot
             if (!registered)
             {
                 MessageBox.Show(
-                    "Could not register the global hotkey (Ctrl+Space).\n" +
-                    "Another application is already using it.\n\n" +
-                    "wSpot cannot run without a hotkey and will now exit.",
-                    "wSpot", MessageBoxButton.OK, MessageBoxImage.Error);
-
+                "Could not register the global hotkey (Ctrl+Space).\n" +
+                "Another application is already using it.\n\n" +
+                "wSpot cannot run without a hotkey and will now exit.",
+                "wSpot", MessageBoxButton.OK, MessageBoxImage.Error);
                 Application.Current.Shutdown();
                 return;
             }
@@ -114,29 +114,22 @@ namespace wSpot
             }
             else if (e.Key == Key.Down)
             {
-                MoveSelection(1);
+                _viewModel.MoveSelection(1);
                 e.Handled = true;
             }
             else if (e.Key == Key.Up)
             {
-                MoveSelection(-1);
+                _viewModel.MoveSelection(-1);
                 e.Handled = true;
             }
         }
 
-        private void MoveSelection(int direction)
+        // Whenever the highlighted row changes (arrow keys, or results refreshing
+        // underneath the user), keep it scrolled into view.
+        private void ResultsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var results = _viewModel.Results;
-            if (results.Count == 0) return;
-
-            int currentIndex = _viewModel.SelectedResult is null
-                ? -1
-                : results.IndexOf(_viewModel.SelectedResult);
-
-            int newIndex = Math.Max(0, Math.Min(results.Count - 1, currentIndex + direction));
-
-            _viewModel.SelectedResult = results[newIndex];
-            ResultsListBox.ScrollIntoView(_viewModel.SelectedResult);
+            if (ResultsListBox.SelectedItem is not null)
+                ResultsListBox.ScrollIntoView(ResultsListBox.SelectedItem);
         }
 
         private void ResultsListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
