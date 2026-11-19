@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using wSpot.Models;
 using wSpot.Services;
 using wSpot.ViewModels;
 
@@ -35,6 +34,11 @@ namespace wSpot
 
             _viewModel = new MainViewModel(database);
             _viewModel.CloseRequested += HideWindow; // hide as soon as something launched
+
+            // Things only the window can do, handed to the ViewModel as functions.
+            _viewModel.CopyToClipboard = text => Clipboard.SetText(text);
+            _viewModel.IconLoader = new IconProvider().LoadAsync;
+
             DataContext = _viewModel;
 
             Loaded += MainWindow_Loaded;
@@ -50,10 +54,11 @@ namespace wSpot
             if (!registered)
             {
                 MessageBox.Show(
-                "Could not register the global hotkey (Ctrl+Space).\n" +
-                "Another application is already using it.\n\n" +
-                "wSpot cannot run without a hotkey and will now exit.",
-                "wSpot", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Could not register the global hotkey (Ctrl+Space).\n" +
+                    "Another application is already using it.\n\n" +
+                    "wSpot cannot run without a hotkey and will now exit.",
+                    "wSpot", MessageBoxButton.OK, MessageBoxImage.Error);
+
                 Application.Current.Shutdown();
                 return;
             }
@@ -82,6 +87,7 @@ namespace wSpot
         private void ShowWindow()
         {
             CenterOnScreen();
+            _viewModel.OnWindowShown(); // fill the empty box with up-to-date suggestions before it appears
             Visibility = Visibility.Visible;
             Activate();
             SearchBox.Focus();
@@ -122,6 +128,12 @@ namespace wSpot
                 _viewModel.MoveSelection(-1);
                 e.Handled = true;
             }
+            else if (e.Key == Key.Return && e.IsRepeat)
+            {
+                // Holding Enter sends it again and again. Without this, holding it on
+                // "Restart" would press it a second time and confirm the restart.
+                e.Handled = true;
+            }
         }
 
         // Whenever the highlighted row changes (arrow keys, or results refreshing
@@ -132,16 +144,16 @@ namespace wSpot
                 ResultsListBox.ScrollIntoView(ResultsListBox.SelectedItem);
         }
 
-        private void ResultsListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        // Wired to every row by the ResultRowStyle in MainWindow.xaml, so "sender" is the
+        // row that was clicked. That works even when the click lands on a coloured
+        // letter, which is a Run inside the name, not a normal element.
+        private void ResultRow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.OriginalSource is DependencyObject source)
+            if (sender is ListBoxItem { DataContext: ResultItem item })
             {
-                var item = ItemsControl.ContainerFromElement(ResultsListBox, source) as ListBoxItem;
-                if (item?.DataContext is AppEntry entry)
-                {
-                    _viewModel.SelectedResult = entry;
-                    _viewModel.LaunchCommand.Execute(null);
-                }
+                _viewModel.SelectedResult = item;
+                _viewModel.LaunchCommand.Execute(null);
+                e.Handled = true;
             }
         }
 
