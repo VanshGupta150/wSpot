@@ -1,3 +1,5 @@
+using System;
+
 namespace wSpot.Services
 {
     /// <summary>
@@ -82,6 +84,37 @@ namespace wSpot.Services
             score -= target.Length / 4; // shorter targets carry less "noise" around the match
 
             return score;
+        }
+
+        /// <summary>
+        /// The positions in <paramref name="target"/> of the characters that
+        /// <see cref="Score"/> matched, in order, so the UI can draw them in bold.
+        /// Uses exactly the same greedy first-match alignment as Score, so the letters
+        /// that are highlighted are the letters that were scored. Returns null if the
+        /// query doesn't match at all.
+        /// </summary>
+        public static int[]? MatchedIndices(string query, string target)
+        {
+            if (string.IsNullOrEmpty(query)) return Array.Empty<int>();
+            if (string.IsNullOrEmpty(target)) return null;
+
+            var indices = new int[query.Length];
+            int targetIndex = 0;
+
+            for (int i = 0; i < query.Length; i++)
+            {
+                char wanted = char.ToLowerInvariant(query[i]);
+
+                while (targetIndex < target.Length && char.ToLowerInvariant(target[targetIndex]) != wanted)
+                    targetIndex++;
+
+                if (targetIndex >= target.Length) return null;
+
+                indices[i] = targetIndex;
+                targetIndex++;
+            }
+
+            return indices;
         }
     }
 }
