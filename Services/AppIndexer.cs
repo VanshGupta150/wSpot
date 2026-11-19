@@ -5,6 +5,11 @@ using wSpot.Models;
 
 namespace wSpot.Services
 {
+    /// <summary>
+    /// Scans the two Start Menu locations Windows uses — the all-users
+    /// folder and the current user's own folder — for .lnk shortcuts,
+    /// and resolves each one via ShortcutResolver.
+    /// </summary>
     public static class AppIndexer
     {
         public static List<AppEntry> ScanInstalledApps()
@@ -29,12 +34,14 @@ namespace wSpot.Services
                     {
                         var (targetPath, arguments) = ShortcutResolver.Resolve(shortcutPath);
 
-                        if (string.IsNullOrWhiteSpace(targetPath)) continue;
+                        // If ShortcutResolver cannot extract an exe path (e.g. UWP / Windows Store apps,
+                        // shell links), keep the shortcut path itself so UseShellExecute can launch it.
+                        string effectiveTarget = string.IsNullOrWhiteSpace(targetPath) ? shortcutPath : targetPath;
 
                         results.Add(new AppEntry
                         {
                             Name = Path.GetFileNameWithoutExtension(shortcutPath),
-                            TargetPath = targetPath,
+                            TargetPath = effectiveTarget,
                             Arguments = arguments
                         });
                     }
