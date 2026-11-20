@@ -34,7 +34,10 @@ namespace wSpot.Services
         public Task<ImageSource?> LoadAsync(AppEntry entry)
         {
             if (entry.Kind != ResultKind.App && entry.Kind != ResultKind.File && entry.Kind != ResultKind.Folder)
-                return Task.FromResult<ImageSource?>(null);
+            {
+                if (entry.Kind != ResultKind.Command || string.IsNullOrWhiteSpace(entry.TargetPath) || !File.Exists(entry.TargetPath))
+                    return Task.FromResult<ImageSource?>(null);
+            }
 
             string path = entry.TargetPath;
 
@@ -92,16 +95,30 @@ namespace wSpot.Services
 
                 IntPtr result = SHGetFileInfo(lookup, attributes, ref info, (uint)Marshal.SizeOf<SHFILEINFO>(), flags);
 
-                if (result == IntPtr.Zero || info.hIcon == IntPtr.Zero)
-                    return null;
+                if (result != IntPtr.Zero && info.hIcon != IntPtr.Zero)
+                {
+                    iconHandle = info.hIcon;
+                    BitmapSource bitmap = Imaging.CreateBitmapSourceFromHIcon(
+                        iconHandle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    bitmap.Freeze();
+                    return bitmap;
+                }
 
-                iconHandle = info.hIcon;
+                // Fallback for executables if SHGetFileInfo produced no icon
+                if (File.Exists(path) && (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (ExtractIconEx(path, 0, out IntPtr hLarge, out IntPtr hSmall, 1) > 0 && hLarge != IntPtr.Zero)
+                    {
+                        if (hSmall != IntPtr.Zero) DestroyIcon(hSmall);
+                        iconHandle = hLarge;
+                        BitmapSource bitmap = Imaging.CreateBitmapSourceFromHIcon(
+                            iconHandle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        bitmap.Freeze();
+                        return bitmap;
+                    }
+                }
 
-                BitmapSource bitmap = Imaging.CreateBitmapSourceFromHIcon(
-                    iconHandle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-
-                bitmap.Freeze(); // frozen objects can be handed from this worker thread to the UI thread
-                return bitmap;
+                return null;
             }
             catch (Exception)
             {
@@ -137,6 +154,10 @@ namespace wSpot.Services
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr SHGetFileInfo(
             string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+
+        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+        private static extern uint ExtractIconEx(
+            string szFileName, int nIconIndex, out IntPtr phiconLarge, out IntPtr phiconSmall, uint nIcons);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr hIcon);

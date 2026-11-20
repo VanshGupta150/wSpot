@@ -15,6 +15,7 @@ namespace wSpot.Services
         public static List<AppEntry> ScanInstalledApps()
         {
             var results = new List<AppEntry>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var startMenuFolders = new[]
             {
@@ -32,6 +33,9 @@ namespace wSpot.Services
                 {
                     try
                     {
+                        string name = Path.GetFileNameWithoutExtension(shortcutPath);
+                        if (!seen.Add(name)) continue;
+
                         var (targetPath, arguments) = ShortcutResolver.Resolve(shortcutPath);
 
                         // If ShortcutResolver cannot extract an exe path (e.g. UWP / Windows Store apps,
@@ -40,7 +44,7 @@ namespace wSpot.Services
 
                         results.Add(new AppEntry
                         {
-                            Name = Path.GetFileNameWithoutExtension(shortcutPath),
+                            Name = name,
                             TargetPath = effectiveTarget,
                             Arguments = arguments
                         });

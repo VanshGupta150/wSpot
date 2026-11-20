@@ -57,8 +57,11 @@ namespace wSpot.Services
             bool searchingUninstaller = query.Contains("uninst", StringComparison.OrdinalIgnoreCase);
 
             // 2. Installed apps.
+            var seenRankedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (AppEntry app in apps)
             {
+                if (!seenRankedNames.Add(app.Name)) continue;
+
                 // Suppress uninstallers from cluttering normal app searches unless explicitly searching for them.
                 bool isUninstaller = app.Name.StartsWith("Uninstall", StringComparison.OrdinalIgnoreCase)
                                   || app.Name.EndsWith("Uninstaller", StringComparison.OrdinalIgnoreCase);
