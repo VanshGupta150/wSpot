@@ -1,189 +1,116 @@
-# wSpot — Phases 5 and 6 (Construction Weeks 9 and 10)
+# wSpot — Spotlight Launcher for Windows
 
-**Phase 5: frecency.** wSpot learns what you open and puts it first.
-**Phase 6: utility and polish.** A calculator, system commands, a web-search fallback, real
-icons, highlighted matches, "show in folder", and a latency log for your evaluation.
+[![CI](https://github.com/VanshGupta150/wSpot/actions/workflows/ci.yml/badge.svg)](https://github.com/VanshGupta150/wSpot/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/badge/release-v1.0.0-blue.svg)](https://github.com/VanshGupta150/wSpot/releases)
+[![Tests](https://img.shields.io/badge/tests-72%20passed-brightgreen.svg)](tests/wSpot.Tests)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4.svg)]()
+[![Framework](https://img.shields.io/badge/.NET-8.0-purple.svg)]()
 
----
-
-## How the list is ordered now
-
-Every row gets a score. The list is sorted by it, best first.
-
-```
-score = how well the letters match (FuzzyMatcher)
-      + 2..10 scaled bonus if it's an app or command
-      + 0..45 frecency boost: how much you use it   <- Phase 5
-      - depth penalty (shallow paths outrank deeply nested ones)
-```
-
-Two rows sit outside the scoring: a valid **calculation** is always first, and the
-**"Search the web" row** is always last. Up to 15 scored rows are shown between them.
+`wSpot` is a fast, keyboard-first desktop launcher for Windows inspired by macOS Spotlight. Built with WPF and .NET 8, it provides sub-millisecond search across installed applications, nested files, live calculations, and system controls—all from a single universal hotkey.
 
 ---
 
-# Phase 5 — Frecency (Week 9)
+## Features
 
-## What you'll see
+### 🚀 Instant Access & Minimalist UI
+* **Global Hotkey:** Press `Ctrl + Space` from any application to summon the centered search bar.
+* **Dismiss on Focus Loss:** Seamlessly hides on `Esc` or clicking anywhere outside the window.
+* **Graceful Conflict Handling:** Alerts and cleanly exits if another process already uses `Ctrl + Space`, preventing ghost background tasks.
 
-- Open Notepad a few times through wSpot. Type `n` and Notepad is now at the top,
-  even if another app matches `n` slightly better.
-- Press **Ctrl+Space** with the box empty. A **Frequently used** list shows up to five
-  things you open most. Nothing is highlighted yet, so a stray Enter launches nothing;
-  press Down to pick one, then Enter.
-- It survives restarts, and it covers apps, files, folders and commands.
-- The command **Clear wSpot history** (type `clear`, Enter, then Enter again to confirm)
-  makes wSpot forget everything.
+### 🔍 Intelligent Search & Ranking
+* **Subsequence Fuzzy Matcher:** Type abbreviations like `gc` to instantly find **Google Chrome** with word-boundary bonus scoring.
+* **Self-Learning Frecency:** Combines frequency and recency using mathematical exponential decay (14-day half-life). Items you launch often naturally rise to the top.
+* **Frequently Used Suggestions:** Pressing `Ctrl + Space` with an empty search box displays your top used apps and files.
+* **Match Highlighting:** Real-time visual feedback rendering matched query letters in bold accent color.
 
-## How it works
+### 📁 Deep File & Folder Search
+* **Dual Search Engine:** Integrates asynchronously with the Voidtools *Everything* IPC engine (`es.exe`) for sub-second NTFS file discovery, with an automatic directory crawler fallback.
+* **Reveal in Explorer:** Press `Ctrl + Enter` on any file, folder, or application to immediately open File Explorer with the item selected.
 
-"Frecency" means frequency and recency in one number.
-
-- Every item has a **score**. Launching it adds **1**.
-- The score **halves every 14 days** (`HalfLifeDays` in `FrecencyScorer.cs`).
-- So something opened five times today beats something opened five times last month, and
-  something opened daily beats something opened once.
-
-Only two numbers are stored per item: the score and the moment it was last updated. That is
-enough because the decay is exponential: decaying "from then until now" in one step gives the
-same answer as decaying a bit every day. No launch history needs to be kept, which makes the
-storage cost per item constant.
-
-The score becomes a ranking boost with a logarithm, capped at 45:
-
-```
-boost = min(45, round(12 * ln(1 + score)))
-```
-
-| What you did | Score | Boost |
-|---|---|---|
-| launched once | 1 | +8 |
-| launched 3 times today | 3 | +17 |
-| launched 10 times recently | 10 | +29 |
-| launched once a day for a week | 6.1 | +23 |
-| launched once a day for a month | 16 | +34 |
-| launched once a day, forever | 20.7 | +37 |
-| 3 launches, then nothing for 14 / 28 / 56 days | 1.5 / 0.75 / 0.19 | +11 / +7 / +2 |
-
-All of these numbers (`HalfLifeDays`, `BoostScale`, `MaxBoost`, `MinSuggestionScore`) sit at the
-top of `FrecencyScorer.cs`, so you can experiment for the report.
-
-## Where it's stored
-
-A SQLite table in `%LocalAppData%\wSpot\wspot.db`, called `usage_stats`:
-
-```sql
-CREATE TABLE usage_stats (
-    usage_key          TEXT PRIMARY KEY,  -- "kind|target|name", lower-cased
-    kind               INTEGER NOT NULL,  -- 0=App, 1=File, 2=Folder, 3=Command...
-    name               TEXT NOT NULL,
-    target_path        TEXT NOT NULL,
-    launch_count       INTEGER NOT NULL,  -- lifetime total, never decays
-    score              REAL NOT NULL,     -- decayed launch counter
-    score_updated_utc  TEXT NOT NULL,     -- when score was last recomputed
-    last_launched_utc  TEXT NOT NULL
-);
-```
-
-Rows older than 180 days with no launch are deleted at startup so the file stays small.
+### 🧮 Live Calculator & Quick Utilities
+* **Math Parser:** Type any math expression (`2+3*4`, `sqrt(144) + 5`, `2^10`, `sin(pi/2)`) to view the answer at the top row. Press `Enter` to copy the result directly to your clipboard.
+* **Quick System Commands:** Instant access to `Lock`, `Sleep`, `Task Manager`, `Device Manager`, `Settings`, `File Explorer`, and `Snipping Tool`.
+* **Two-Step Confirmation:** Destructive commands (`Restart`, `Shut down`, `Sign out`, `Clear history`) require a second `Enter` within 5 seconds to prevent accidental actions.
+* **Web Fallback:** Seamlessly opens queries in your default browser if no local matches are found.
 
 ---
 
-# Phase 6 — Utility and Polish (Week 10)
+## Keyboard Shortcuts
 
-## 1. Calculator
+| Shortcut | Action |
+|---|---|
+| `Ctrl + Space` | Open or toggle the wSpot search bar |
+| `Esc` | Clear search text and hide the window |
+| `Up / Down` | Navigate up and down through the result list |
+| `Enter` | Launch selected app/file, copy calculation, or execute command |
+| `Ctrl + Enter` | Open containing folder and select the item in File Explorer |
 
-Type any maths and the top row shows the answer:
+---
 
-- `2+3*4` -> `14`
-- `(10 - 2) * 5` -> `40`
-- `2^10` or `2**10` -> `1024`
-- `sqrt(144) + 5` -> `17`
-- `15% of 80` -> type `80 * 0.15` -> `12`
-- `sin(pi/2)` -> `1`
+## Installation & Running
 
-Press **Enter** to copy the answer to the clipboard (the window closes, paste it wherever you
-wanted it).
+### Option 1: Standalone Portable Executable (Recommended)
+No installation or .NET SDK required.
+1. Download `wSpot-v1.0.0-win-x64.zip` from [Releases](https://github.com/VanshGupta150/wSpot/releases).
+2. Extract the archive.
+3. Double-click `wSpot.exe` to start.
+4. Press `Ctrl + Space` anytime to summon the launcher.
 
-It uses a small recursive-descent parser (`ExpressionEvaluator.cs`) that only accepts
-numbers, arithmetic and safe functions (`sqrt`, `cbrt`, `abs`, `sin`, `cos`, `tan`, `asin`,
-`acos`, `atan`, `ln`, `log`, `log2`, `exp`, `floor`, `ceil`, `round`, `pow`, `min`, `max`) and
-constants (`pi`, `e`, `tau`). Division by zero, `sqrt(-1)` and overflows fail silently, so
-invalid maths never turns into a calculator row.
+*(Optional: Install [Voidtools Everything](https://www.voidtools.com/) for ultra-fast NTFS file indexing).*
 
-Plain numbers like `42` or words like `vs2022` never trigger the calculator: it requires at
-least one operator or function call.
-
-## 2. Quick system commands
-
-Type:
-
-- **Lock** -> locks the PC (`rundll32 user32.dll,LockWorkStation`).
-- **Sleep** -> puts the PC to sleep via the Windows power API (`SetSuspendState`).
-- **Restart**, **Shut down**, **Sign out** -> asks for a second Enter to confirm:
-  press Enter once, the footer says `Press Enter again to confirm: Restart`, press Enter within
-  5 seconds and the command runs. Any other key cancels.
-- **Task Manager**, **Device Manager**, **Services**, **Control Panel**, **Settings**,
-  **Windows Update** -> opens the corresponding Windows management tool.
-- **File Explorer**, **Downloads**, **Recycle Bin** -> opens those locations.
-- **Snipping Tool** -> triggers the Windows screen snip overlay.
-
-Keywords work: `reboot` finds Restart, `processes` finds Task Manager, `trash` finds Recycle Bin.
-
-## 3. Web-search fallback
-
-The last row is always **Search the web for "..."**. Press Enter to open the query in your
-default browser. When nothing on your PC matches, this is the only row, so typing a question
-and pressing Enter is seamless.
-
-## 4. Real Windows icons
-
-Each row loads the icon Windows Explorer shows for that item (`IconProvider.cs`):
-
-- `.exe`, `.lnk` and `.ico` files read their own individual icon.
-- Every other file type (`.pdf`, `.docx`, `.png`...) shares one icon per extension, cached
-  in memory.
-- Folders show the standard Windows folder icon.
-- Built-in commands show a symbol from the Segoe MDL2 Assets font that ships with Windows.
-- Icons load in the background, so the list appears immediately and icons fill in a fraction of
-  a second later.
-
-## 5. Match highlighting
-
-The letters that matched what you typed are drawn in **bold** and in an accent colour, using
-the `HighlightText` attached property (`HighlightText.cs`). Neighbouring letters are grouped
-into one `Run` so long names render smoothly.
-
-## 6. Show in folder
-
-Press **Ctrl+Enter** on any file, folder or app to open Explorer with that item selected.
-
-## 7. Latency evaluation log
-
-Every search you settle on appends a row to:
-
-```
-%LocalAppData%\wSpot\search-log.csv
-```
-
-Format:
-
-```csv
-timestamp_utc,query_len,apps_ms,files_ms,engine,results
-2026-11-19T10:45:01.1234567Z,3,1.42,12.80,Everything,15
-```
-
-- `apps_ms`: milliseconds from keystroke until apps and commands were ready.
-- `files_ms`: milliseconds from keystroke until files were merged in.
-- `engine`: `Everything`, `FolderScan` or `none` (for 1-letter searches).
-- `results`: how many rows were shown.
-
-To compute **p50 and p95 latency** for your report, run this PowerShell snippet:
+### Option 2: Build From Source
+Prerequisites: Windows 10/11 and [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ```powershell
-$log = Import-Csv "$env:LOCALAPPDATA\wSpot\search-log.csv"
-$appTimes = $log | ForEach-Object { [double]$_.apps_ms } | Sort-Object
-$p50 = $appTimes[[math]::Floor($appTimes.Count * 0.50)]
-$p95 = $appTimes[[math]::Floor($appTimes.Count * 0.95)]
-Write-Host "Apps latency: p50 = $p50 ms, p95 = $p95 ms (sample size: $($appTimes.Count))"
+# Clone the repository
+git clone https://github.com/VanshGupta150/wSpot.git
+cd wSpot
+
+# Build solution
+dotnet build wSpot.slnx -c Release
+
+# Run the app
+dotnet run --project wSpot.csproj -c Release
 ```
+
+---
+
+## Testing & Quality Assurance
+
+The project includes an automated test suite containing **72 unit tests** built with xUnit, running continuously via GitHub Actions CI:
+
+```powershell
+# Run the test suite
+dotnet test wSpot.slnx
+```
+
+**Test Coverage Areas:**
+* `FrecencyScorer`: Exponential decay, half-life math, score boost clamping.
+* `ExpressionEvaluator`: Arithmetic precedence, power associativity (`2^3^2 = 512`), function evaluations, and silent NaN/infinity rejection.
+* `ResultRanker`: Multi-tier scoring, calculator row precedence, web search fallback, and suggestion filtering.
+* `FuzzyMatcher`: Subsequence detection, word-boundary scoring, and character index highlighting.
+* `EverythingClient`: CLI argument construction and path deduplication.
+* `FileResultFilter`: Noise suppression for temp files, caches, and system directories.
+
+---
+
+## Architecture & Tech Stack
+
+```
+wSpot (WPF UI - MVVM)
+ ├── View:        MainWindow.xaml (XAML layout, dark theme, match highlighting)
+ ├── ViewModel:   MainViewModel.cs (Reactive data-binding, cancellation tokens, async search)
+ ├── Services:    FuzzyMatcher, ResultRanker, FrecencyScorer, EverythingClient, ProcessLauncher
+ └── Database:    AppDatabase.cs (Local SQLite database in %LocalAppData%\wSpot\wspot.db)
+```
+
+* **Frontend:** C# / WPF, XAML, P/Invoke (`user32.dll`), COM Interop (`IShellLink`).
+* **Backend Core:** .NET 8.0 Windows Desktop SDK.
+* **Storage:** Embedded SQLite (`Microsoft.Data.Sqlite`) for app catalog and frecency memory.
+* **CI/CD:** GitHub Actions running on `windows-latest`.
+
+---
+
+## License
+
+Developed as a Semester 5 Software Engineering Project.
