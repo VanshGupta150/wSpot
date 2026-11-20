@@ -7,7 +7,9 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>wSpot</RootNamespace>
     <AssemblyName>wSpot</AssemblyName>
+    <Version>1.0.0</Version>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

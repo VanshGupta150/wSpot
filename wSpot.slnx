@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/wSpot.Tests/wSpot.Tests.csproj" />
+  </Folder>
+  <Project Path="wSpot.csproj" />
+</Solution>
